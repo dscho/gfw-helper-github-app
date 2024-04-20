@@ -1,3 +1,5 @@
+const { activeOrg } = require('./org')
+
 module.exports = async (context, req) => {
     const command = req.body.comment.body
     const owner = req.body.repository.owner.login
@@ -50,7 +52,7 @@ module.exports = async (context, req) => {
 
     try {
         if (command == '/open pr') {
-            if (owner !== 'git-for-windows' || repo !== 'git') return `Ignoring ${command} in unexpected repo: ${commentURL}`
+            if (owner !== activeOrg || repo !== 'git') return `Ignoring ${command} in unexpected repo: ${commentURL}`
 
             await checkPermissions()
 
@@ -62,7 +64,7 @@ module.exports = async (context, req) => {
             const openPR = async (package_name, packageType) => {
                 const { searchIssues } = require('./search')
                 const prTitle = `${package_name}: update to ${version}`
-                const items = await searchIssues(context, `org:git-for-windows is:pull-request "${prTitle}" in:title`)
+                const items = await searchIssues(context, `org:${activeOrg} is:pull-request "${prTitle}" in:title`)
                 const alreadyOpenedPR = items.filter(e => e.title === prTitle)
 
                 const { appendToIssueComment } = require('./issues');
@@ -85,7 +87,7 @@ module.exports = async (context, req) => {
                 const answer = await triggerWorkflowDispatch(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     'git-for-windows-automation',
                     'open-pr.yml',
                     'main', {
@@ -106,7 +108,7 @@ module.exports = async (context, req) => {
         }
 
         if (command == '/updpkgsums') {
-            if (owner !== 'git-for-windows'
+            if (owner !== activeOrg
              || !req.body.issue.pull_request
              || !['build-extra', 'MINGW-packages', 'MSYS2-packages'].includes(repo)) {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
@@ -119,7 +121,7 @@ module.exports = async (context, req) => {
             const answer = await triggerWorkflowDispatch(
                 context,
                 await getToken(),
-                'git-for-windows',
+                activeOrg,
                 'git-for-windows-automation',
                 'updpkgsums.yml',
                 'main', {
@@ -136,7 +138,7 @@ module.exports = async (context, req) => {
 
         const deployMatch = command.match(/^\/deploy(\s+(\S+)\s*)?$/)
         if (deployMatch) {
-            if (owner !== 'git-for-windows'
+            if (owner !== activeOrg
              || !req.body.issue.pull_request
              || !['build-extra', 'MINGW-packages', 'MSYS2-packages'].includes(repo)) {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
@@ -163,7 +165,7 @@ module.exports = async (context, req) => {
                 await triggerWorkflowDispatch(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     'git-for-windows-automation',
                     'build-and-deploy.yml',
                     'main', {
@@ -217,7 +219,7 @@ module.exports = async (context, req) => {
                 e.id = await queueCheckRun(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     repo,
                     ref,
                     deployLabel,
@@ -248,7 +250,7 @@ module.exports = async (context, req) => {
                 await updateCheckRun(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     repo,
                     e.id, {
                         details_url: e.answer.html_url
@@ -260,7 +262,7 @@ module.exports = async (context, req) => {
         }
 
         if (command == '/git-artifacts') {
-            if (owner !== 'git-for-windows'
+            if (owner !== activeOrg
              || repo !== 'git'
              || !req.body.issue.pull_request
             ) {
@@ -320,7 +322,7 @@ module.exports = async (context, req) => {
                 const answer = await triggerWorkflowDispatch(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     'git-for-windows-automation',
                     'tag-git.yml',
                     'main', {
@@ -382,7 +384,7 @@ module.exports = async (context, req) => {
             const releaseCheckRunId = await queueCheckRun(
                 context,
                 await getToken(),
-                'git-for-windows',
+                activeOrg,
                 repo,
                 commitSHA,
                 'github-release',
@@ -418,7 +420,7 @@ module.exports = async (context, req) => {
                         const owner = match[1]
                         const repo = match[2]
                         workFlowRunIDs[architecture] = match[3]
-                        if (owner !== 'git-for-windows' || repo !== 'git-for-windows-automation') {
+                        if (owner !== activeOrg || repo !== 'git-for-windows-automation') {
                             throw new Error(`Unexpected repository ${owner}/${repo} for git-artifacts run ${latest.id}: ${latest.url}`)
                         }
 
@@ -450,7 +452,7 @@ module.exports = async (context, req) => {
                 const answer = await triggerWorkflowDispatch(
                     context,
                     await getToken(),
-                    'git-for-windows',
+                    activeOrg,
                     'git-for-windows-automation',
                     'release-git.yml',
                     'main', {
@@ -484,7 +486,7 @@ module.exports = async (context, req) => {
 
         const relNotesMatch = command.match(/^\/add (relnote|release ?note)(\s+(blurb|feature|bug)\s+([^]*))?$/i)
         if (relNotesMatch) {
-            if (owner !== 'git-for-windows'
+            if (owner !== activeOrg
              || !['git', 'build-extra', 'MINGW-packages', 'MSYS2-packages'].includes(repo)) {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
             }
@@ -511,7 +513,7 @@ module.exports = async (context, req) => {
             const answer = await triggerWorkflowDispatch(
                 context,
                 await getToken(),
-                'git-for-windows',
+                activeOrg,
                 'build-extra',
                 'add-release-note.yml',
                 'main', {

@@ -1,3 +1,5 @@
+const { activeOrg } = require('./org')
+
 const getToken = (() => {
     const tokens = {}
 
@@ -25,7 +27,7 @@ const triggerGitArtifactsRuns = async (context, checkRunOwner, checkRunRepo, tag
     const owner = match[1]
     const repo = match[2]
     const workflowRunId = Number(match[3])
-    if (owner !== 'git-for-windows' || repo !== 'git-for-windows-automation') {
+    if (owner !== activeOrg || repo !== 'git-for-windows-automation') {
         throw new Error(`Unexpected repository ${owner}/${repo} for tag-git run ${tagGitCheckRun.id}: ${tagGitCheckRun.url}`)
     }
 
@@ -110,7 +112,7 @@ const cascadingRuns = async (context, req) => {
 
     if (action === 'completed') {
         if (name === 'tag-git') {
-            if (checkRunOwner !== 'git-for-windows' || checkRunRepo !== 'git') {
+            if (checkRunOwner !== activeOrg || checkRunRepo !== 'git') {
                 throw new Error(`Refusing to handle cascading run in ${checkRunOwner}/${checkRunRepo}`)
             }
 
