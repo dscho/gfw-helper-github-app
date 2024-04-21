@@ -175,3 +175,4 @@ default_events:
 
 Running this command provided information that needed to be added to the Azure Function in that Function's `Environment Variables` tab in the Azure Portal: `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`, and `GITHUB_APP_PRIVATE_KEY` (without the `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` boilerplate and _without newlines_, something like `cat ~/Downloads/my-github-app.pem | sed -e 1d -e \$d | tr -d '\n'` prints the desired value).
 
+Please note that adding environment variables is a bit eccentric in the Azure Portal: you need to click the "+ Add application setting" link, and after specifying the name and the value hit the "Apply" button. Once all of the environment variables have been "applied", hit _another_ "Apply" button: this one is located below the list of environment variables.
