@@ -104,37 +104,37 @@ let mockGitHubApiRequest = jest.fn((_context, _token, method, requestPath, paylo
         login: 'cheers'
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/86')) return {
-        head: { sha: '707a11ee' }
+        head: { sha: '707a11ee' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/500')) return {
-        head: { sha: '82e8648' }
+        head: { sha: '82e8648' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/74')) return {
-        head: { sha: 'a7e4b90' }
+        head: { sha: 'a7e4b90' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/75')) return {
-        head: { sha: '45b8fd0' }
+        head: { sha: '45b8fd0' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/90')) return {
-        head: { sha: '265d07e' }
+        head: { sha: '265d07e' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/96')) return {
-        head: { sha: 'b7b0dfc' }
+        head: { sha: 'b7b0dfc' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/153')) return {
-        head: { sha: 'b197f8f' }
+        head: { sha: 'b197f8f' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/4322')) return {
-        head: { sha: 'c8edb521bdabec14b07e9142e48cab77a40ba339' }
+        head: { sha: 'c8edb521bdabec14b07e9142e48cab77a40ba339' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/4328')) return {
-        head: { sha: 'this-will-be-rc2' }
+        head: { sha: 'this-will-be-rc2' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/4323')) return {
-        head: { sha: 'dee501d15' }
+        head: { sha: 'dee501d15' }, base: { ref: 'main' }
     }
     if (method === 'GET' && requestPath.endsWith('/pulls/765')) return {
-        head: { sha: 'c0ffee1ab7e' }
+        head: { sha: 'c0ffee1ab7e' }, base: { ref: 'main' }
     }
     if (method === 'PATCH' && requestPath.endsWith('/git/refs/heads/main')) {
         if (payload.sha !== 'c0ffee1ab7e') throw new Error(`Unexpected sha: ${payload.sha}`)

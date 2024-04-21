@@ -154,8 +154,8 @@ module.exports = async (context, req) => {
             // The commit hash of the tip commit is sadly not part of the
             // "comment.created" webhook's payload. Therefore, we have to get it
             // "by hand"
-            const { getPRCommitSHA } = require('./issues')
-            const ref = await getPRCommitSHA(console, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: ref } = await getPRCommitSHAAndTargetBranch(console, await getToken(), owner, repo, issueNumber)
 
             await thumbsUp()
 
@@ -272,8 +272,8 @@ module.exports = async (context, req) => {
             await checkPermissions()
             await thumbsUp()
 
-            const { getPRCommitSHA } = require('./issues')
-            const rev = await getPRCommitSHA(context, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: rev, targetBranch: releaseBranch } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
             const runs = await listCheckRunsForCommit(
@@ -318,6 +318,13 @@ module.exports = async (context, req) => {
             )
 
             try {
+                const inputs = {
+                    rev,
+                    owner,
+                    repo,
+                    snapshot: 'false',
+                }
+                if (releaseBranch !== 'main') inputs['release-branch'] = releaseBranch
                 const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
                 const answer = await triggerWorkflowDispatch(
                     context,
@@ -325,12 +332,8 @@ module.exports = async (context, req) => {
                     activeOrg,
                     'git-for-windows-automation',
                     'tag-git.yml',
-                    'main', {
-                        rev,
-                        owner,
-                        repo,
-                        snapshot: 'false'
-                    }
+                    'main',
+                    inputs
                 )
 
                 const { appendToIssueComment } = require('./issues')
@@ -375,8 +378,8 @@ module.exports = async (context, req) => {
             await thumbsUp()
 
             // Find the `git-artifacts` runs' IDs
-            const { getPRCommitSHA } = require('./issues')
-            const commitSHA = await getPRCommitSHA(context, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: commitSHA } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
             const checkRunTitle = `Publish Git for Windows @${commitSHA}`
