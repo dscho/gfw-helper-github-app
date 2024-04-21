@@ -23,14 +23,15 @@ const getIssueComment = async (context, token, owner, repo, comment_id) => {
     return await sendGitHubAPIRequest(context, token, 'GET', `/repos/${owner}/${repo}/issues/comments/${comment_id}`)
 }
 
-const getGitArtifactsCommentID = async (context, token, owner, repo, headSHA, tagGitWorkflowRunURL) => {
-    const answer = await sendGitHubAPIRequest(context, token, 'GET', `/search/issues?q=repo:${owner}/${repo}+${headSHA}+type:pr+%22git-artifacts%22`, null, {
+const getGitArtifactsCommentID = async (context, token, owner, repo, headSHA, tagGitWorkflowRunURL, mingitOnly) => {
+    const slashCommand = `${mingitOnly ? 'min' : ''}git-artifacts`
+    const answer = await sendGitHubAPIRequest(context, token, 'GET', `/search/issues?q=repo:${owner}/${repo}+${headSHA}+type:pr+%22${slashCommand}%22`, null, {
         Accept: 'application/vnd.github.text-match+json'
     })
     let commentID = false
     for (const item of answer.items) {
         for (const text_match of item.text_matches) {
-            if (text_match.fragment.startsWith('/git-artifacts')) {
+            if (text_match.fragment.startsWith(`/${slashCommand}`)) {
                 if (commentID !== false) return false // more than one match, maybe a trickster at play, ignore altogether
                 else {
                     commentID = text_match.object_url.replace(/^.*\/(\d+)$/, '$1')
@@ -56,7 +57,7 @@ const getGitArtifactsCommentID = async (context, token, owner, repo, headSHA, ta
         `/repos/${owner}/${repo}/issues/${comment.issue_url.replace(/^.*\/(\d+)$/, '$1')}/comments`
     )
     for (const comment2 of comments) {
-        if (comment2.body.startsWith(`/git-artifacts`) && comment2.body.includes(needle)) {
+        if (comment2.body.startsWith(`/${slashCommand}`) && comment2.body.includes(needle)) {
             if (commentID !== false) return false // more than one match, maybe a trickster at play, ignore altogether
             commentID = comment2.id
         }

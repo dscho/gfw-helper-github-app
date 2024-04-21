@@ -261,13 +261,15 @@ module.exports = async (context, req) => {
             return `I edited the comment: ${answer.html_url}`
         }
 
-        if (command == '/git-artifacts') {
+        if (command == '/git-artifacts' || command == '/mingit-artifacts') {
             if (owner !== activeOrg
              || repo !== 'git'
              || !req.body.issue.pull_request
             ) {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
             }
+
+            const mingitOnly = command == '/mingit-artifacts'
 
             await checkPermissions()
             await thumbsUp()
@@ -291,7 +293,7 @@ module.exports = async (context, req) => {
                 // There is already a `tag-git` workflow run; Trigger the `git-artifacts` runs directly
                 if (!latest.head_sha) latest.head_sha = rev
                 const { triggerGitArtifactsRuns } = require('./cascading-runs')
-                const res = await triggerGitArtifactsRuns(context, owner, repo, latest)
+                const res = await triggerGitArtifactsRuns(context, owner, repo, latest, mingitOnly)
 
                 const { appendToIssueComment } = require('./issues')
                 const answer2 = await appendToIssueComment(
@@ -305,7 +307,7 @@ module.exports = async (context, req) => {
                 return `I edited the comment: ${answer2.html_url}`
             }
 
-            const tagGitCheckRunTitle = `Tag Git @${rev}`
+            const tagGitCheckRunTitle = `Tag ${mingitOnly ? 'Min' : ''}Git @${rev}`
             const tagGitCheckRunId = await queueCheckRun(
                 context,
                 await getToken(),
@@ -325,6 +327,7 @@ module.exports = async (context, req) => {
                     snapshot: 'false',
                 }
                 if (releaseBranch !== 'main') inputs['release-branch'] = releaseBranch
+                if (mingitOnly) inputs['mingit-only'] = 'true'
                 const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
                 const answer = await triggerWorkflowDispatch(
                     context,

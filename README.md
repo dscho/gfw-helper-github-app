@@ -57,6 +57,12 @@ For convenience, the command can be abbreviated as `/add relnote <type> <message
 
 **What does it do?** Call this command after a `/git-artifacts` command successfully produced the artifacts _and_ after the installer artifact has been validated manually, using [the "pre-flight checklist"](https://github.com/git-for-windows/build-extra/blob/HEAD/installer/checklist.txt). This will start [the `release-git` GitHub workflow](https://github.com/git-for-windows/git-for-windows-automation/actions/workflows/release-git.yml) to publish the artifacts in a new GitHub Release.
 
+### `/mingit-artifacts`
+
+**Where can it be called?** In `git-for-windows/git`'s [Pull Requests](https://github.com/git-for-windows/git/pulls)
+
+**What does it do?** Similar to `/git-artifacts`, this will start [the `tag-git` GitHub workflow](https://github.com/git-for-windows/git-for-windows-automation/actions/workflows/tag-git.yml), but with an option to tag a new _MinGit_ for Windows version; Once completed, [the `git-artifacts` GitHub workflows](https://github.com/git-for-windows/git-for-windows-automation/actions/workflows/git-artifacts.yml) will be triggered, which build the MinGit artifacts.
+
 ## Spinning up Windows/ARM64 runners
 
 As GitHub Actions do not offer hosted Windows/ARM64 runners, Git for Windows needs to use self-hosted Windows/ARM64 runners to build the `clang-aarch64` versions of its MINGW packages.

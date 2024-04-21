@@ -162,6 +162,34 @@ The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-ar
 `)
         return { html_url: 'https://github.com/git-for-windows/git/pull/4322#issuecomment-1450703020' }
     }
+    // /mingit-artifacts payloads
+    if (method === 'GET' && requestPath.endsWith('/pulls/3')) return {
+        head: { sha: '149ea317e7f8b5fe7ce0a03ba7c9c2e4964da8d1' }, base: { ref: 'mingit-2.43.x-releases' }
+    }
+    if (method === 'GET' && requestPath.endsWith('/pulls/4')) return {
+        head: { sha: '2868283f22fa5468d7bcf2abc47d981e1332d4ff' }, base: { ref: 'mingit-2.39.x-releases' }
+    }
+    if (method === 'GET' && requestPath === '/search/issues?q=repo:git-for-windows/git+149ea317e7f8b5fe7ce0a03ba7c9c2e4964da8d1+type:pr+%22mingit-artifacts%22') return {
+        items: [{
+            text_matches: [{
+                object_url: 'https://api.github.com/repositories/23216272/issues/comments/1456789012',
+                fragment: '/mingit-artifacts\n\nThe tag-git workflow run was started\n'
+            }]
+        }]
+    }
+    if (method === 'GET' && requestPath === '/repos/git-for-windows/git/issues/comments/1456789012') return {
+        body: '/git-artifacts\n\nThe tag-git workflow run [was started](https://url-to-tag-mingit/)'
+    }
+    if (method === 'PATCH' && requestPath === '/repos/git-for-windows/git/issues/comments/1456789012') {
+        expect(payload.body).toEqual(`/mingit-artifacts
+
+The tag-git workflow run [was started](https://url-to-tag-mingit/)
+
+git-artifacts-x86_64 run already exists at <url-to-existing-x86_64-run>.
+The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-artifacts.yml).
+`)
+        return { html_url: 'https://github.com/git-for-windows/git/pull/4#issuecomment-1456789012' }
+    }
     throw new Error(`Unhandled ${method}-${requestPath}-${JSON.stringify(payload)}`)
 })
 jest.mock('../GitForWindowsHelper/github-api-request', () => {
@@ -386,6 +414,19 @@ let mockListCheckRunsForCommit = jest.fn((_context, _token, _owner, _repo, rev, 
                 title: 'Tag Git -rc1½',
                 summary: `Tag Git -rc1½ @${rev}`,
                 text: 'For details, see [this run](https://github.com/git-for-windows/git-for-windows-automation/actions/runs/341).'
+            }
+        }]
+        return []
+    }
+    if (rev === '2868283f22fa5468d7bcf2abc47d981e1332d4ff') {
+        if (checkRunName === 'tag-git') return [{
+            status: 'completed',
+            conclusion: 'success',
+            html_url: '<url-to-tag-mingit',
+            output: {
+                title: 'Tag MinGit v2.43.4',
+                summary: `Tag MinGit v2.43.4 @${rev}`,
+                text: 'For details, see [this run](https://github.com/git-for-windows/git-for-windows-automation/actions/runs/123).'
             }
         }]
         return []
@@ -745,6 +786,73 @@ The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-ar
     expect(dispatchedWorkflows[1].payload.inputs).toEqual({
         architecture: 'x86_64',
         tag_git_workflow_run_id: "341"
+    })
+})
+
+testIssueComment('/mingit-artifacts', {
+    issue: {
+        number: 3,
+        title: 'MinGit 2.43.4',
+        pull_request: {
+            html_url: 'https://github.com/git-for-windows/git/pull/3'
+        }
+    }
+}, async (context) => {
+    expect(await index(context, context.req)).toBeUndefined()
+    expect(context.res).toEqual({
+        body: `I edited the comment: appended-comment-body-existing comment body
+
+The \`tag-git\` workflow run [was started](dispatched-workflow-tag-git.yml)`,
+        headers: undefined,
+        status: undefined
+    })
+    expect(mockGetInstallationAccessToken).toHaveBeenCalledTimes(1)
+    expect(mockGitHubApiRequestAsApp).not.toHaveBeenCalled()
+    expect(dispatchedWorkflows).toHaveLength(1)
+    expect(dispatchedWorkflows[0].html_url).toEqual('dispatched-workflow-tag-git.yml')
+    expect(dispatchedWorkflows[0].payload.inputs).toEqual({
+        'mingit-only': 'true',
+        'release-branch': 'mingit-2.43.x-releases',
+        owner: 'git-for-windows',
+        repo: 'git',
+        rev: '149ea317e7f8b5fe7ce0a03ba7c9c2e4964da8d1',
+        snapshot: 'false'
+    })
+
+    jest.clearAllMocks()
+    dispatchedWorkflows.splice(0, dispatchedWorkflows.length) // empty the array
+
+    // with existing `tag-git` run
+    context.req.body.issue = {
+        number: 4,
+        title: 'MinGit 2.43.4½',
+        pull_request: {
+            html_url: 'https://github.com/git-for-windows/git/pull/4'
+        }
+    }
+
+    expect(await index(context, context.req)).toBeUndefined()
+    expect(context.res).toEqual({
+        body: `I edited the comment: appended-comment-body-existing comment body
+
+The \`git-artifacts-x86_64\` workflow run [was started](dispatched-workflow-git-artifacts.yml).
+The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-artifacts.yml).
+`,
+        headers: undefined,
+        status: undefined
+    })
+    expect(mockGetInstallationAccessToken).toHaveBeenCalled()
+    expect(mockGitHubApiRequestAsApp).not.toHaveBeenCalled()
+    expect(dispatchedWorkflows).toHaveLength(2)
+    expect(dispatchedWorkflows[0].html_url).toEqual('dispatched-workflow-git-artifacts.yml')
+    expect(dispatchedWorkflows[0].payload.inputs).toEqual({
+        architecture: 'i686',
+        tag_git_workflow_run_id: "123"
+    })
+    expect(dispatchedWorkflows[1].html_url).toEqual('dispatched-workflow-git-artifacts.yml')
+    expect(dispatchedWorkflows[1].payload.inputs).toEqual({
+        architecture: 'x86_64',
+        tag_git_workflow_run_id: "123"
     })
 })
 
