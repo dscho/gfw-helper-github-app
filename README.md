@@ -144,24 +144,34 @@ As a last step, the repository was pushed, triggering the deployment to the Azur
 
 ### The GitHub App
 
-Finally, [a new GitHub App was registered](https://github.com/settings/apps/new).
+Finally, a new GitHub App was registered. Instead of [doing it manually](https://github.com/settings/apps/new), the convenient [`npx register-github-app-cli` command](https://github.com/gr2m/register-github-app-cli) was used with `--org <owning-organization>` and a variation of this manifest:
 
-The repository URL on GitHub was used as homepage URL.
+```yml
+name: <name>
+url: https://github.com/apps/<name>
+hook_attributes:
+  url: https://<function-app-name>.azurewebsites.net/api/GitForWindowsHelper
+public: false
+default_permissions:
+  actions: write
+  administration: write
+  checks: write
+  contents: write
+  deployments: read
+  emails: read
+  environments: read
+  issues: write
+  metadata: read
+  pull_requests: write
+  workflows: write
+default_events:
+  - check_suite
+  - check_run
+  - issue_comment
+  - workflow_dispatch
+  - workflow_job
+  - workflow_run
+```
 
-As Webhook URL, the URL of the Azure Function was used, which can be copied in the "Functions" tab of the Azure Function. It looks similar to this: https://my-github-app.azurewebsites.net/api/MyGitHubApp
+Running this command provided information that needed to be added to the Azure Function in that Function's `Environment Variables` tab in the Azure Portal: `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`, and `GITHUB_APP_PRIVATE_KEY` (without the `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` boilerplate and _without newlines_, something like `cat ~/Downloads/my-github-app.pem | sed -e 1d -e \$d | tr -d '\n'` prints the desired value).
 
-The value stored in the Azure Function as `GITHUB_WEBHOOK_SECRET` was used as Webhook secret.
-
-A whole slew of repository permissions was selected (in the least, Contents, Issues, Pull Requests and Workflows as read/write), and also a slew of read-only account permissions.
-
-The GitHub App was subscribed to quite a few events, it would probably have made more sense to start with none at all.
-
-The GitHub App was then restricted to be used "Only on this account", and once everything worked, it was made public (in the "Advanced" tab of the App's settings).
-
-Even at this stage, a private key could not be generated yet, therefore the App had to be registered without it.
-
-After the successful creation, the private key was generated (almost all the way to the bottom, in the section "Private key", there was a button labeled "Generate a private key") and then the middle part (i.e. the lines without the `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` boilerplate), _without newlines_, was stored as `GITHUB_APP_PRIVATE_KEY` in the Azure Function Configuration (something like `cat ~/Downloads/my-github-app.pem | sed -e 1d -e \$d | tr -d '\n'` prints the desired value).
-
-Likewise, there was now a button labeled "Generate a new client secret" in the "Client secrets" section, and it was used to generate that secret. Subsequently, this secret was stored in the Azure Function Configuration as `GITHUB_APP_CLIENT_SECRET`.
-
-At long last, the "App ID" and the "Client ID" which are reported at the top of the GitHub App page (and which is apparently not _really_ considered to be secret) were stored in the Azure Function Configuration as `GITHUB_APP_ID` and `GITHUB_APP_CLIENT_ID`, respectively.
