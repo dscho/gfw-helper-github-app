@@ -190,6 +190,9 @@ The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-ar
 `)
         return { html_url: 'https://github.com/git-for-windows/git/pull/4#issuecomment-1456789012' }
     }
+    if (method === 'GET' && requestPath === '/repos/git-for-windows/automation/actions/runs/9876') return {
+        pretendExists: true
+    }
     throw new Error(`Unhandled ${method}-${requestPath}-${JSON.stringify(payload)}`)
 })
 jest.mock('../GitForWindowsHelper/github-api-request', () => {
@@ -410,6 +413,7 @@ let mockListCheckRunsForCommit = jest.fn((_context, _token, _owner, _repo, rev, 
             status: 'completed',
             conclusion: 'success',
             html_url: '<url-to-tag-git',
+            details_url: 'https://github.com/git-for-windows/automation/actions/runs/9876',
             output: {
                 title: 'Tag Git -rc1½',
                 summary: `Tag Git -rc1½ @${rev}`,
@@ -423,6 +427,7 @@ let mockListCheckRunsForCommit = jest.fn((_context, _token, _owner, _repo, rev, 
             status: 'completed',
             conclusion: 'success',
             html_url: '<url-to-tag-mingit',
+            details_url: 'https://github.com/git-for-windows/automation/actions/runs/9876',
             output: {
                 title: 'Tag MinGit v2.43.4',
                 summary: `Tag MinGit v2.43.4 @${rev}`,

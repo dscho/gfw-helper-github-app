@@ -277,6 +277,20 @@ module.exports = async (context, req) => {
             const { getPRCommitSHAAndTargetBranch } = require('./issues')
             const { sha: rev, targetBranch: releaseBranch } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
 
+            const { wasWorkflowRunDeleted } = require('./workflow-runs')
+            const workflowRunExists = async url => {
+                const match = url.match(`^https://github.com/${owner}/([^/]+)/actions/runs/([0-9]+)`)
+                if (!match) return false
+                const [, repo, runId] = match
+                return !(await wasWorkflowRunDeleted(
+                    context,
+                    await getToken(owner, repo),
+                    owner,
+                    repo,
+                    runId
+                ))
+            }
+
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
             const runs = await listCheckRunsForCommit(
                 context,
@@ -289,7 +303,12 @@ module.exports = async (context, req) => {
             const latest = runs
                 .sort((a, b) => a.id - b.id)
                 .pop()
-            if (latest && latest.status === 'completed' && latest.conclusion === 'success') {
+            if (
+                latest
+                && latest.status === 'completed'
+                && latest.conclusion === 'success'
+                && await workflowRunExists(latest.details_url)
+            ) {
                 // There is already a `tag-git` workflow run; Trigger the `git-artifacts` runs directly
                 if (!latest.head_sha) latest.head_sha = rev
                 const { triggerGitArtifactsRuns } = require('./cascading-runs')
