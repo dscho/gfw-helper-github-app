@@ -261,7 +261,8 @@ module.exports = async (context, req) => {
             return `I edited the comment: ${answer.html_url}`
         }
 
-        if (command == '/git-artifacts' || command == '/mingit-artifacts') {
+        const gitArtifactsCommandMatch = command.match(`^/(min)?git-artifacts(?: --release-date=(.*))?$`)
+        if (gitArtifactsCommandMatch) {
             if (owner !== activeOrg
              || repo !== 'git'
              || !req.body.issue.pull_request
@@ -269,7 +270,8 @@ module.exports = async (context, req) => {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
             }
 
-            const mingitOnly = command == '/mingit-artifacts'
+            const mingitOnly = gitArtifactsCommandMatch[1] === 'min'
+            const releaseDate = gitArtifactsCommandMatch[2]
 
             await checkPermissions()
             await thumbsUp()
@@ -292,7 +294,7 @@ module.exports = async (context, req) => {
             }
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
-            const runs = await listCheckRunsForCommit(
+            const runs = releaseDate ? [] : await listCheckRunsForCommit(
                 context,
                 await getToken(owner, repo),
                 owner,
@@ -347,6 +349,7 @@ module.exports = async (context, req) => {
                 }
                 if (releaseBranch !== 'main') inputs['release-branch'] = releaseBranch
                 if (mingitOnly) inputs['mingit-only'] = 'true'
+                if (releaseDate) inputs['release-date'] = releaseDate
                 const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
                 const answer = await triggerWorkflowDispatch(
                     context,

@@ -861,6 +861,29 @@ The \`git-artifacts-i686\` workflow run [was started](dispatched-workflow-git-ar
     })
 })
 
+testIssueComment('/mingit-artifacts --release-date=May 14th 2024', {
+    issue: {
+        number: 3,
+        title: 'MinGit 2.43.4',
+        pull_request: {
+            html_url: 'https://github.com/git-for-windows/git/pull/3'
+        }
+    }
+}, async (context) => {
+    expect(await index(context, context.req)).toBeUndefined()
+    expect(dispatchedWorkflows).toHaveLength(1)
+    expect(dispatchedWorkflows[0].html_url).toEqual('dispatched-workflow-tag-git.yml')
+    expect(dispatchedWorkflows[0].payload.inputs).toEqual({
+        'mingit-only': 'true',
+        'release-branch': 'mingit-2.43.x-releases',
+        'release-date': 'May 14th 2024',
+        owner: 'git-for-windows',
+        repo: 'git',
+        rev: '149ea317e7f8b5fe7ce0a03ba7c9c2e4964da8d1',
+        snapshot: 'false'
+    })
+})
+
 testIssueComment('/release', {
     issue: {
         number: 4328,
