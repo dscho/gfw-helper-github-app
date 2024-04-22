@@ -15,6 +15,16 @@
       "console": "internalConsole"
     },
     {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug webhook delivery",
+      "program": "${workspaceRoot}/test-pr-comment-delivery.js",
+      "cwd": "${workspaceRoot}",
+      // pass the webhook payload (obtained via `get-webhook-event-payload.js`) as an argument
+      // "args": ["example.yml"],
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Attach to Node Functions",
       "type": "node",
       "request": "attach",
