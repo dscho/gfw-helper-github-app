@@ -1,4 +1,5 @@
 const validateGitHubWebHook = require('./validate-github-webhook')
+const { activeOrg } = require('./org')
 
 module.exports = async function (context, req) {
     const withStatus = (status, headers, body) => {
@@ -39,7 +40,7 @@ module.exports = async function (context, req) {
     try {
         const selfHostedARM64Runners = require('./self-hosted-arm64-runners')
         if (req.headers['x-github-event'] === 'workflow_job'
-            && ['git-for-windows/git-for-windows-automation', 'git-for-windows/git-sdk-arm64'].includes(req.body.repository.full_name)
+            && [`${activeOrg}/git-for-windows-automation`, `${activeOrg}/git-sdk-arm64`].includes(req.body.repository.full_name)
             && ['queued', 'completed'].includes(req.body.action)
             && req.body.workflow_job.labels.length === 2
             && req.body.workflow_job.labels[0] === 'Windows'
@@ -52,7 +53,7 @@ module.exports = async function (context, req) {
     try {
         const finalizeGitForWindowsRelease = require('./finalize-g4w-release')
         if (req.headers['x-github-event'] === 'workflow_run'
-            && req.body.repository.full_name === 'git-for-windows/git-for-windows-automation'
+            && req.body.repository.full_name === `${activeOrg}/git-for-windows-automation`
             && req.body.action === 'completed'
             && req.body.workflow_run.path === '.github/workflows/release-git.yml'
             && req.body.workflow_run.conclusion === 'success') return ok(await finalizeGitForWindowsRelease(context, req))
@@ -64,7 +65,7 @@ module.exports = async function (context, req) {
     try {
         const { cascadingRuns } = require('./cascading-runs.js')
         if (req.headers['x-github-event'] === 'check_run'
-            && req.body.repository.full_name === 'git-for-windows/git'
+            && req.body.repository.full_name === `${activeOrg}/git`
             && req.body.action === 'completed') return ok(await cascadingRuns(context, req))
     } catch (e) {
         context.log(e)
