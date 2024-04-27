@@ -7,11 +7,22 @@
       "name": "Debug Tests",
       "program": "${workspaceRoot}/node_modules/.bin/jest",
       "cwd": "${workspaceRoot}",
-      // to restrict running to a particular test case, add something like "--testNamePattern=/deploy"
+      // to restrict running to a particular test case, add something like "--testNamePattern=/deploy" (or "-t", "mingit-artifacts")
       "args": ["--runInBand", "--config", "jest.config.js"],
       "windows": {
         "program": "${workspaceFolder}/node_modules/jest/bin/jest"
-      }
+      },
+      "console": "internalConsole"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug webhook delivery",
+      "program": "${workspaceRoot}/test-pr-comment-delivery.js",
+      "cwd": "${workspaceRoot}",
+      // pass the webhook payload (obtained via `get-webhook-event-payload.js`) as an argument
+      // "args": ["example.yml"],
+      "console": "integratedTerminal"
     },
     {
       "name": "Attach to Node Functions",
