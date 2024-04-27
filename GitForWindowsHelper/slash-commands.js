@@ -391,7 +391,7 @@ module.exports = async (context, req) => {
             }
         }
 
-        if (command == '/release') {
+        if (command === '/release') {
             if (owner !== 'git-for-windows'
               || repo !== 'git'
               || !req.body.issue.pull_request
@@ -491,6 +491,234 @@ module.exports = async (context, req) => {
 
                 const { appendToIssueComment } = require('./issues')
                 const answer2 = await appendToIssueComment(context, await getToken(), owner, repo, commentId, `The \`release-git\` workflow run [was started](${answer.html_url})`)
+                return `I edited the comment: ${answer2.html_url}`
+            } catch (e) {
+                await updateCheckRun(
+                    context,
+                    await getToken(),
+                    owner,
+                    repo,
+                    releaseCheckRunId, {
+                        status: 'completed',
+                        conclusion: 'failure',
+                        output: {
+                            title: checkRunTitle,
+                            summary: checkRunSummary,
+                            text: e.message || JSON.stringify(e, null, 2)
+                        }
+                    }
+                )
+                throw e
+            }
+        }
+
+        if (command === '/prepare-embargoed-release') {
+            if (owner !== activeOrg
+              || repo !== 'git'
+              || !req.body.issue.pull_request
+            ) {
+                return `Ignoring ${command} in unexpected repo: ${commentURL}`
+            }
+
+            await checkPermissions()
+            await thumbsUp()
+
+            const mingitOnly = req.body.issue.title.match(/\bmingit\b/i)
+            const gitOrMinGit = `${mingitOnly ? 'Min' : ''}Git`
+
+            // Find the `git-artifacts` runs' IDs
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: commitSHA } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
+
+            const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
+            const checkRunTitle = `Prepare embargoed ${gitOrMinGit} for Windows @${commitSHA}`
+            const checkRunSummary = `Downloading the ${gitOrMinGit} artifacts from and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
+            const releaseCheckRunId = await queueCheckRun(
+                context,
+                await getToken(),
+                activeOrg,
+                repo,
+                commitSHA,
+                'prepare-github-release',
+                checkRunTitle,
+                checkRunSummary
+            )
+
+            try {
+                let gitVersion
+                let tagGitWorkflowRunID
+                const workFlowRunIDs = {}
+                for (const architecture of ['x86_64', 'i686']) {
+                    const workflowName = `git-artifacts-${architecture}`
+                    const runs = await listCheckRunsForCommit(
+                        context,
+                        await getToken(owner, repo),
+                        owner,
+                        repo,
+                        commitSHA,
+                        workflowName
+                    )
+                    const latest = runs
+                        .filter(run => run.output.summary.indexOf(` from commit ${commitSHA} ` > 0))
+                        .sort((a, b) => a.id - b.id)
+                        .pop()
+                    if (latest) {
+                        if (latest.status !== 'completed' || latest.conclusion !== 'success') {
+                            throw new Error(`The '${workflowName}}' run at ${latest.html_url} did not succeed.`)
+                        }
+
+                        const match = latest.output.text.match(/For details, see \[this run\]\(https:\/\/github.com\/([^/]+)\/([^/]+)\/actions\/runs\/(\d+)\)/)
+                        if (!match) throw new Error(`Unhandled 'text' attribute of git-artifacts run ${latest.id}: ${latest.url}`)
+                        const owner = match[1]
+                        const repo = match[2]
+                        workFlowRunIDs[architecture] = match[3]
+                        if (owner !== activeOrg || repo !== 'git-for-windows-automation') {
+                            throw new Error(`Unexpected repository ${owner}/${repo} for git-artifacts run ${latest.id}: ${latest.url}`)
+                        }
+
+                        const gitVersionMatch = latest.output.summary.match(`^Build ${gitOrMinGit} (\\S+) artifacts from commit (\\S+) \\(tag-git run #(\\d+)\\)$`)
+                        if (!gitVersionMatch) throw new Error(`Could not parse summary '${latest.output.summary}' of run ${latest.id}`)
+                        if (!gitVersion) gitVersion = gitVersionMatch[1]
+                        else if (gitVersion !== gitVersionMatch[1]) throw new Error(`The 'git-artifacts' runs disagree on the Git version`)
+                        if (!tagGitWorkflowRunID) tagGitWorkflowRunID = gitVersionMatch[3]
+                        else if (tagGitWorkflowRunID !== gitVersionMatch[3]) throw new Error(`The 'git-artifacts' runs are based on different 'tag-git' runs`)
+                    } else {
+                        throw new Error(`The '${workflowName}' run was not found`)
+                    }
+                }
+
+                await updateCheckRun(
+                    context,
+                    await getToken(),
+                    owner,
+                    repo,
+                    releaseCheckRunId, {
+                        output: {
+                            title: `Prepare embargoed ${gitOrMinGit} ${gitVersion} for @${commitSHA}`,
+                            summary: `Downloading the ${gitOrMinGit} artifacts from ${workFlowRunIDs['x86_64']} and ${workFlowRunIDs['i686']} and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
+                        }
+                    }
+                )
+
+                const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
+                const answer = await triggerWorkflowDispatch(
+                    context,
+                    await getToken(),
+                    activeOrg,
+                    'git-for-windows-automation',
+                    'prepare-embargoed-release.yml',
+                    'main', {
+                        git_artifacts_x86_64_workflow_run_id: workFlowRunIDs['x86_64'],
+                        git_artifacts_i686_workflow_run_id: workFlowRunIDs['i686']
+                    }
+                )
+
+                const { appendToIssueComment } = require('./issues')
+                const answer2 = await appendToIssueComment(context, await getToken(), owner, repo, commentId, `The \`prepare-embargoed-release\` workflow run [was started](${answer.html_url})`)
+                return `I edited the comment: ${answer2.html_url}`
+            } catch (e) {
+                await updateCheckRun(
+                    context,
+                    await getToken(),
+                    owner,
+                    repo,
+                    releaseCheckRunId, {
+                        status: 'completed',
+                        conclusion: 'failure',
+                        output: {
+                            title: checkRunTitle,
+                            summary: checkRunSummary,
+                            text: e.message || JSON.stringify(e, null, 2)
+                        }
+                    }
+                )
+                throw e
+            }
+        }
+
+        if (command === '/publish-embargoed-release') {
+            if (owner !== activeOrg
+              || repo !== 'git'
+              || !req.body.issue.pull_request
+            ) {
+                return `Ignoring ${command} in unexpected repo: ${commentURL}`
+            }
+
+            await checkPermissions()
+            await thumbsUp()
+
+            // Find the `git-artifacts` runs' IDs
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: commitSHA } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
+
+            const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
+            const checkRunTitle = `Publish embargoed Git for Windows @${commitSHA}`
+            const checkRunSummary = `Downloading the Git artifacts from the embargoed-builds GitHub Release and publishing them as a new GitHub Release at git-for-windows/${repo}`
+            const releaseCheckRunId = await queueCheckRun(
+                context,
+                await getToken(),
+                activeOrg,
+                repo,
+                commitSHA,
+                'github-release',
+                checkRunTitle,
+                checkRunSummary
+            )
+
+            try {
+                let gitVersion
+                const workflowName = `tag-git`
+                const runs = await listCheckRunsForCommit(
+                    context,
+                    await getToken(owner, repo),
+                    owner,
+                    repo,
+                    commitSHA,
+                    workflowName
+                )
+                const latest = runs
+                    .filter(run => run.output.summary.indexOf(` from commit ${commitSHA} ` > 0))
+                    .sort((a, b) => a.id - b.id)
+                    .pop()
+                if (latest) {
+                    if (latest.status !== 'completed' || latest.conclusion !== 'success') {
+                        throw new Error(`The '${workflowName}}' run at ${latest.html_url} did not succeed.`)
+                    }
+
+                    const match = latest.output.text.match(/Tagged (?:Min)?Git (v\d+\S+)/)
+                    if (!match) throw new Error(`Unhandled 'text' attribute of tag-git run ${latest.id}: ${latest.url}`)
+                    gitVersion = match[1]
+                } else {
+                    throw new Error(`The '${workflowName}' run was not found`)
+                }
+
+                await updateCheckRun(
+                    context,
+                    await getToken(),
+                    owner,
+                    repo,
+                    releaseCheckRunId, {
+                        output: {
+                            title: `Publish embargoed ${gitVersion} for @${commitSHA}`,
+                            summary: checkRunSummary
+                        }
+                    }
+                )
+
+                const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
+                const answer = await triggerWorkflowDispatch(
+                    context,
+                    await getToken(),
+                    activeOrg,
+                    'git-for-windows-automation',
+                    'publish-embargoed-release.yml',
+                    'main', {
+                        'git-version': gitVersion
+                    }
+                )
+
+                const { appendToIssueComment } = require('./issues')
+                const answer2 = await appendToIssueComment(context, await getToken(), owner, repo, commentId, `The \`publish-embargoed-release\` workflow run [was started](${answer.html_url})`)
                 return `I edited the comment: ${answer2.html_url}`
             } catch (e) {
                 await updateCheckRun(
