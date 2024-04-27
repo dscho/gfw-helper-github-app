@@ -391,7 +391,7 @@ module.exports = async (context, req) => {
             }
         }
 
-        if (command == '/release') {
+        if (command === '/release') {
             if (owner !== 'git-for-windows'
               || repo !== 'git'
               || !req.body.issue.pull_request
