@@ -154,8 +154,8 @@ module.exports = async (context, req) => {
             // The commit hash of the tip commit is sadly not part of the
             // "comment.created" webhook's payload. Therefore, we have to get it
             // "by hand"
-            const { getPRCommitSHA } = require('./issues')
-            const ref = await getPRCommitSHA(console, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: ref } = await getPRCommitSHAAndTargetBranch(console, await getToken(), owner, repo, issueNumber)
 
             await thumbsUp()
 
@@ -261,7 +261,8 @@ module.exports = async (context, req) => {
             return `I edited the comment: ${answer.html_url}`
         }
 
-        if (command == '/git-artifacts') {
+        const gitArtifactsCommandMatch = command.match(`^/(min)?git-artifacts(?: --release-date=(.*))?$`)
+        if (gitArtifactsCommandMatch) {
             if (owner !== activeOrg
              || repo !== 'git'
              || !req.body.issue.pull_request
@@ -269,14 +270,31 @@ module.exports = async (context, req) => {
                 return `Ignoring ${command} in unexpected repo: ${commentURL}`
             }
 
+            const mingitOnly = gitArtifactsCommandMatch[1] === 'min'
+            const releaseDate = gitArtifactsCommandMatch[2]
+
             await checkPermissions()
             await thumbsUp()
 
-            const { getPRCommitSHA } = require('./issues')
-            const rev = await getPRCommitSHA(context, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: rev, targetBranch: releaseBranch } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
+
+            const { wasWorkflowRunDeleted } = require('./workflow-runs')
+            const workflowRunExists = async url => {
+                const match = url.match(`^https://github.com/${owner}/([^/]+)/actions/runs/([0-9]+)`)
+                if (!match) return false
+                const [, repo, runId] = match
+                return !(await wasWorkflowRunDeleted(
+                    context,
+                    await getToken(owner, repo),
+                    owner,
+                    repo,
+                    runId
+                ))
+            }
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
-            const runs = await listCheckRunsForCommit(
+            const runs = releaseDate ? [] : await listCheckRunsForCommit(
                 context,
                 await getToken(owner, repo),
                 owner,
@@ -287,11 +305,16 @@ module.exports = async (context, req) => {
             const latest = runs
                 .sort((a, b) => a.id - b.id)
                 .pop()
-            if (latest && latest.status === 'completed' && latest.conclusion === 'success') {
+            if (
+                latest
+                && latest.status === 'completed'
+                && latest.conclusion === 'success'
+                && await workflowRunExists(latest.details_url)
+            ) {
                 // There is already a `tag-git` workflow run; Trigger the `git-artifacts` runs directly
                 if (!latest.head_sha) latest.head_sha = rev
                 const { triggerGitArtifactsRuns } = require('./cascading-runs')
-                const res = await triggerGitArtifactsRuns(context, owner, repo, latest)
+                const res = await triggerGitArtifactsRuns(context, owner, repo, latest, mingitOnly)
 
                 const { appendToIssueComment } = require('./issues')
                 const answer2 = await appendToIssueComment(
@@ -305,7 +328,7 @@ module.exports = async (context, req) => {
                 return `I edited the comment: ${answer2.html_url}`
             }
 
-            const tagGitCheckRunTitle = `Tag Git @${rev}`
+            const tagGitCheckRunTitle = `Tag ${mingitOnly ? 'Min' : ''}Git @${rev}`
             const tagGitCheckRunId = await queueCheckRun(
                 context,
                 await getToken(),
@@ -318,6 +341,15 @@ module.exports = async (context, req) => {
             )
 
             try {
+                const inputs = {
+                    rev,
+                    owner,
+                    repo,
+                    snapshot: 'false',
+                }
+                if (releaseBranch !== 'main') inputs['release-branch'] = releaseBranch
+                if (mingitOnly) inputs['mingit-only'] = 'true'
+                if (releaseDate) inputs['release-date'] = releaseDate
                 const triggerWorkflowDispatch = require('./trigger-workflow-dispatch')
                 const answer = await triggerWorkflowDispatch(
                     context,
@@ -325,12 +357,8 @@ module.exports = async (context, req) => {
                     activeOrg,
                     'git-for-windows-automation',
                     'tag-git.yml',
-                    'main', {
-                        rev,
-                        owner,
-                        repo,
-                        snapshot: 'false'
-                    }
+                    'main',
+                    inputs
                 )
 
                 const { appendToIssueComment } = require('./issues')
@@ -375,8 +403,8 @@ module.exports = async (context, req) => {
             await thumbsUp()
 
             // Find the `git-artifacts` runs' IDs
-            const { getPRCommitSHA } = require('./issues')
-            const commitSHA = await getPRCommitSHA(context, await getToken(), owner, repo, issueNumber)
+            const { getPRCommitSHAAndTargetBranch } = require('./issues')
+            const { sha: commitSHA } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
             const checkRunTitle = `Publish Git for Windows @${commitSHA}`

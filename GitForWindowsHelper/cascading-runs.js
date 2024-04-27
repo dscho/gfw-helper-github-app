@@ -13,7 +13,7 @@ const getToken = (() => {
     return async (context, owner, repo) => tokens[[owner, repo]] || (tokens[[owner, repo]] = await get(context, owner, repo))
 })()
 
-const triggerGitArtifactsRuns = async (context, checkRunOwner, checkRunRepo, tagGitCheckRun) => {
+const triggerGitArtifactsRuns = async (context, checkRunOwner, checkRunRepo, tagGitCheckRun, mingitOnly) => {
     const commitSHA = tagGitCheckRun.head_sha
     const conclusion = tagGitCheckRun.conclusion
     const text = tagGitCheckRun.output.text
@@ -31,7 +31,7 @@ const triggerGitArtifactsRuns = async (context, checkRunOwner, checkRunRepo, tag
         throw new Error(`Unexpected repository ${owner}/${repo} for tag-git run ${tagGitCheckRun.id}: ${tagGitCheckRun.url}`)
     }
 
-    const gitVersionMatch = tagGitCheckRun.output.summary.match(/^Tag Git (\S+) @([0-9a-f]+)$/)
+    const gitVersionMatch = tagGitCheckRun.output.summary.match(/^Tag (?:Min)?Git (\S+) @([0-9a-f]+)$/)
     if (!gitVersionMatch) {
         throw new Error(`Could not parse Git version from summary '${tagGitCheckRun.output.summary}' of tag-git run ${tagGitCheckRun.id}: ${tagGitCheckRun.url}`)
     }
@@ -70,8 +70,8 @@ const triggerGitArtifactsRuns = async (context, checkRunOwner, checkRunRepo, tag
 
     for (const architecture of architecturesToTrigger) {
         const workflowName = `git-artifacts-${architecture}`
-        const title = `Build Git ${gitVersion} artifacts`
-        const summary = `Build Git ${gitVersion} artifacts from commit ${commitSHA} (tag-git run #${workflowRunId})`
+        const title = `Build ${mingitOnly ? 'Min' : ''}Git ${gitVersion} artifacts`
+        const summary = `Build ${mingitOnly ? 'Min' : ''}Git ${gitVersion} artifacts from commit ${commitSHA} (tag-git run #${workflowRunId})`
         await queueCheckRun(
             context,
             await getToken(context, checkRunOwner, checkRunRepo),
@@ -116,7 +116,8 @@ const cascadingRuns = async (context, req) => {
                 throw new Error(`Refusing to handle cascading run in ${checkRunOwner}/${checkRunRepo}`)
             }
 
-            const comment = await triggerGitArtifactsRuns(context, checkRunOwner, checkRunRepo, checkRun)
+            const mingitOnly = checkRun.output.title.startsWith('Tag MinGit')
+            const comment = await triggerGitArtifactsRuns(context, checkRunOwner, checkRunRepo, checkRun, mingitOnly)
 
             const token = await getToken(context, checkRunOwner, checkRunRepo)
             const { getGitArtifactsCommentID, appendToIssueComment } = require('./issues')
@@ -127,6 +128,7 @@ const cascadingRuns = async (context, req) => {
                 checkRunRepo,
                 req.body.check_run.head_sha,
                 checkRun.details_url,
+                mingitOnly,
             )
 
             if (gitArtifactsCommentID) {
