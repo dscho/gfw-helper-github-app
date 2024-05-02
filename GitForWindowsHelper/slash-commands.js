@@ -523,13 +523,16 @@ module.exports = async (context, req) => {
             await checkPermissions()
             await thumbsUp()
 
+            const mingitOnly = req.body.issue.title.match(/\bmingit\b/i)
+            const gitOrMinGit = `${mingitOnly ? 'Min' : ''}Git`
+
             // Find the `git-artifacts` runs' IDs
             const { getPRCommitSHAAndTargetBranch } = require('./issues')
             const { sha: commitSHA } = await getPRCommitSHAAndTargetBranch(context, await getToken(), owner, repo, issueNumber)
 
             const { listCheckRunsForCommit, queueCheckRun, updateCheckRun } = require('./check-runs')
-            const checkRunTitle = `Prepare embargoed Git for Windows @${commitSHA}`
-            const checkRunSummary = `Downloading the Git artifacts from and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
+            const checkRunTitle = `Prepare embargoed ${gitOrMinGit} for Windows @${commitSHA}`
+            const checkRunSummary = `Downloading the ${gitOrMinGit} artifacts from and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
             const releaseCheckRunId = await queueCheckRun(
                 context,
                 await getToken(),
@@ -573,7 +576,7 @@ module.exports = async (context, req) => {
                             throw new Error(`Unexpected repository ${owner}/${repo} for git-artifacts run ${latest.id}: ${latest.url}`)
                         }
 
-                        const gitVersionMatch = latest.output.summary.match(/^Build Git (\S+) artifacts from commit (\S+) \(tag-git run #(\d+)\)$/)
+                        const gitVersionMatch = latest.output.summary.match(`^Build ${gitOrMinGit} (\\S+) artifacts from commit (\\S+) \\(tag-git run #(\\d+)\\)$`)
                         if (!gitVersionMatch) throw new Error(`Could not parse summary '${latest.output.summary}' of run ${latest.id}`)
                         if (!gitVersion) gitVersion = gitVersionMatch[1]
                         else if (gitVersion !== gitVersionMatch[1]) throw new Error(`The 'git-artifacts' runs disagree on the Git version`)
@@ -591,8 +594,8 @@ module.exports = async (context, req) => {
                     repo,
                     releaseCheckRunId, {
                         output: {
-                            title: `Prepare embargoed ${gitVersion} for @${commitSHA}`,
-                            summary: `Downloading the Git artifacts from ${workFlowRunIDs['x86_64']} and ${workFlowRunIDs['i686']} and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
+                            title: `Prepare embargoed ${gitOrMinGit} ${gitVersion} for @${commitSHA}`,
+                            summary: `Downloading the ${gitOrMinGit} artifacts from ${workFlowRunIDs['x86_64']} and ${workFlowRunIDs['i686']} and publishing them as a new embargoed GitHub Release at ${owner}/${repo}`
                         }
                     }
                 )
